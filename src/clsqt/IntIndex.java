@@ -1,4 +1,4 @@
-package lsqt;
+package clsqt;
 
 class IntIndex implements Index<IntIndex> {
     //Simple index for testing - just ints
@@ -11,7 +11,7 @@ class IntIndex implements Index<IntIndex> {
     @Override
     public int compareTo(IntIndex i) {
         //return (index < i.getRaw())? -1 : ((index == i.getRaw()) ? 0 : 1);
-        return Integer.compare(index, i.getRaw());
+        return Integer.compare(index, i.index);
     }
 
     @Override
@@ -19,13 +19,15 @@ class IntIndex implements Index<IntIndex> {
         return String.valueOf(index);
     }
 
+    /*
     private int getRaw() {
         return index;
     }
+     */
 
     @Override
     public boolean contains(IntIndex i) {
-        return (i.getRaw() == index);
+        return (i.index == index);
     }
 
     /*

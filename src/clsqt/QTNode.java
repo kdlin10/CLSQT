@@ -1,4 +1,4 @@
-package lsqt;
+package clsqt;
 
 class QTNode<I extends Index<I>, V> extends Node<I, V> {
     //It's possible for points to overlap and our linear quadtree's resolution is limited, so we have to accommodate multiple points in one quad

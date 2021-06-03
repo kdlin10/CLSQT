@@ -1,4 +1,4 @@
-package lsqt;
+package clsqt;
 
 import java.util.ArrayList;
 
@@ -324,6 +324,7 @@ public class Skiplist<I extends Index<I>, V> {
     }
 
     //The index for our head/tail implements Index<I>, meaning it can be compared to whatever implementation of Index used to construct the skiplist
+    //...actually can't be compared to, which we sidestep by having not doing it
     class HeadIndex implements Index<I> {
         @Override
         public int compareTo(Index i) {

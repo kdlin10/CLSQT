@@ -1,5 +1,6 @@
-#Compressed Linear Skip Quadtree (WIP)
-##Introduction
+# Compressed Linear Skip Quadtree (WIP)
+
+## Introduction
 I ran into a need to store a collection of objects associated with Cartesian coordinates, with the following requirements:
 
 * Support fast nearest neighbor and varying 2D range searches (Both rectangular and by radius)

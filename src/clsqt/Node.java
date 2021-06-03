@@ -1,4 +1,4 @@
-package lsqt;
+package clsqt;
 
 //We don't *need* all our values to be the same class, but it would make life easier for the user, right?
 //Could make life harder if some are singles and some are bins... could default to returning an array/collection of V
