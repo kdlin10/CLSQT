@@ -5,13 +5,16 @@ package clsqt;
 abstract class Node<I extends Index<I>, V> implements Comparable<Node<I, V>> {
     @Override
     abstract public int compareTo(Node<I, V> n);
+    abstract public int compareTo(I i);
     abstract V getValue();
+    abstract V setValue(V v);
     abstract int getMaxHeight();
     abstract boolean containsIndex(I i);
+    abstract boolean overlapsIndex(I i);
     abstract boolean hasNext(int h);
     abstract boolean isEmpty();
     abstract Node setNext(int h, Node<I, V> n); //Return the previous next node? Potential shortcut but unused thus far
-    abstract Node getNext(int h);
+    abstract Node<I, V> getNext(int h);
     abstract I getIndex();
     abstract public String toString();
 }

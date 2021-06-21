@@ -19,6 +19,16 @@ class IntIndex implements Index<IntIndex> {
         return String.valueOf(index);
     }
 
+    @Override
+    public int minRange() {
+        return index;
+    }
+
+    @Override
+    public int maxRange() {
+        return index;
+    }
+
     /*
     private int getRaw() {
         return index;
@@ -28,6 +38,16 @@ class IntIndex implements Index<IntIndex> {
     @Override
     public boolean contains(IntIndex i) {
         return (i.index == index);
+    }
+
+    @Override
+    public boolean overlaps(IntIndex i) {
+        return (i.index == index);
+    }
+
+    @Override
+    public boolean isDivisible() {
+        return false;
     }
 
     /*

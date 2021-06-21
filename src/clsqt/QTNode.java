@@ -18,6 +18,11 @@ class QTNode<I extends Index<I>, V> extends Node<I, V> {
         return index.compareTo(n.getIndex());
     }
 
+    @Override
+    public int compareTo(I i) {
+        return index.compareTo(i);
+    }
+
     public I getIndex() {
         return index;
     }
@@ -36,6 +41,11 @@ class QTNode<I extends Index<I>, V> extends Node<I, V> {
         return index.contains(i);
     }
 
+    @Override
+    boolean overlapsIndex(I i) {
+        return index.overlaps(i);
+    }
+
     public boolean hasNext(int h) {
         return (h < nextNodes.length && nextNodes[h] != null);
     }
@@ -52,12 +62,19 @@ class QTNode<I extends Index<I>, V> extends Node<I, V> {
         return oldNextNode;
     }
 
-    public Node getNext(int h) {
+    public Node<I, V> getNext(int h) {
         //A low level data structure shouldn't run into this if we check properly at a higher level
         return nextNodes[h];
     }
 
     public V getValue() {
         return value;
+    }
+
+    @Override
+    V setValue(V v) {
+        V oldValue = value;
+        value = v;
+        return oldValue;
     }
 }

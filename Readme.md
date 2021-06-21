@@ -30,8 +30,8 @@ Given an index to locate, we start at the highest populated level and follow the
 
 To insert/delete, we traverse, but connect/disconnect the target node along the way. 
 
-##TODO
-- [ ] Implement Morton coding
+## TODO
+- [x] Implement Morton coding
 - [ ] Adaptive node resizing/splitting/merging based on Quadtree behavior
 - [ ] Debugging/Visualization infrastructure
 - [ ] Search query optimization?

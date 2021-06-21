@@ -4,15 +4,16 @@ import java.util.ArrayList;
 
 public class Skiplist<I extends Index<I>, V> {
     //Our skiplist is different from most implementations in two respects: link direction alternates depending on layer and nodes will map to a range of numbers (disallowing overlaps)
+    //Does not support duplicate/overlapping indexes, supports duplicate values
     private int currentMaxHeight; //Ideal in terms of convergence speed is 1 : e ratio between each layer... We'll settle for 1:3
     private int listCeiling = 24; //Should be more than enough - if every 3rd node on a layer gets bumped up, we can fit 3^24 nodes, surpassing max int range
     private int[] heightTracker;
     private int size = 0;
     private Node<I, V> headNode, tailNode;
 
-    public Skiplist() {
-        headNode = new HeadNode();
-        tailNode = new TailNode();
+    public Skiplist(I head, I tail) {
+        headNode = new HeadNode(head);
+        tailNode = new TailNode(tail);
         currentMaxHeight = 0;
         heightTracker = new int[listCeiling];
         //Link the two nodes that hold everything in between. Apparently initializing an ArrayList with some capacity doesn't actually make it all accessible so we have to start from 0
@@ -27,103 +28,101 @@ public class Skiplist<I extends Index<I>, V> {
     //Add constructor for adding a set of indexed values?
 
     public V get(I i) {
-        Node<I, V> targetNode = findNode(i);
-        return targetNode.getValue();
-    }
-
-
-    public boolean add(I i, V v) {
-        int h = pickNodeHeight();
-        insertNode(new QTNode<>(i, v, h));
-        size++;
-        return true;
-    }
-
-    public boolean remove(I i) {
-        size--;
-        return deleteNode(i);
-    }
-
-    Node<I, V> findNode(I i) {
-        //Check if we've gone past the index - if we haven't, keep going. If we have, check if current node is a hit. If it isn't, we need to drop down a level and keep searching.
-        //When there is nothing left to traverse on height 0 and we still haven't found the target, terminate and return null
-        //Since the link direction alternates on each level, the comparison is reversed
-        int height = currentMaxHeight;
-        int alternator = (1 - 2 * (height % 2)); //1 on even heights, -1 on odd
-        Node current = (alternator == 1)? headNode : tailNode;
-        while (height >= 0) {
-            //Loop until we're past i or hit the boundaries
-            //This way our head/tail node always returns as desired, instead of potential collision with extreme value
-            while (current.getIndex().compareTo(i) * alternator < 0 && current.hasNext(height)) {
-                current = current.getNext(height);
-            }
-            if (current.containsIndex(i)) {
-                return current;
-            }
-            height--;
-            alternator = (1 - 2 * (height % 2));
+        Node<I, V> targetNode = findPrecursors(i, 0)[0].getNext(0);
+        //Perhaps make an protected unsafeGet to avoid the branching?
+        if (targetNode.containsIndex(i)) {
+            return targetNode.getValue();
         }
         return null;
     }
 
-    //When would this fail? If we try inserting a node where one already exists? How would we know the available space before we traverse and attempt to add the node?
-    //Stuck at max height of 2, starts search at node height instead of skiplist max height
-    private boolean insertNode(Node n) {
-        int height = Math.max(currentMaxHeight, n.getMaxHeight());
-        Index i = n.getIndex();
-        int alternator = (1 - 2 * (height % 2));
+
+    public boolean put(I i, V v) {
+        int h = pickNodeHeight();
+        Node[] precursorNodes = findPrecursors(i, h);
+        if (precursorNodes[0].getNext(0).containsIndex(i)) {
+            //Let's hold off on storing multiple values in a node for now - if we collide, replace with new
+            precursorNodes[0].getNext(0).setValue(v);
+            return true;
+        }
+        insertNode(precursorNodes, new QTNode<I, V>(i, v, h));
+        size++;
+        return true;
+    }
+
+    //Probably shouldn't support removing a value without the index, since it means we need to traverse the entire skiplist
+    //Node designed to hold more than one object... but for now we treat it as single values
+    //It might be useful to return the deleted node instead for the quadtree... but not general usage
+    public boolean remove(I i) {
+        Node[] precursorNodes = findPrecursors(i, currentMaxHeight);
+        Node targetNode = precursorNodes[0].getNext(0);
+        //Assumes each node stores only one value...
+        if (targetNode.containsIndex(i)) {
+            size--;
+            return deleteNode(precursorNodes, targetNode);
+        }
+        return false;
+    }
+
+    Node[] findPrecursors(Node<I, V> n) {
+        return findPrecursors(n.getIndex(), n.getMaxHeight());
+    }
+
+    //Return an array of Nodes present up to level h that would connect to a Node with Index i... but we don't always know what height we want.
+    //The default should be the height of the node we're looking for... which of course we don't know until we find the node. Might need to just track starting from currentMaxHeight then truncate down
+    //Does the snaking traversal the whole way when we only need the previous nodes at height h and below
+    //Our sole method of traversal right now, but keeps going even when it encounters our target... ought to split one out
+    Node[] findPrecursors(I i, int h) {
+        //If we're inserting a node that would be a new max height...
+        int height = Math.max(currentMaxHeight, h);
+        int alternator = (1 - 2 * (height % 2)); //1 on even heights, -1 on odd
         Node current = (alternator == 1)? headNode : tailNode;
         Node next;
+        Node[] precursorNodes = new Node[h+1];
+        //Since the link direction alternates on each level, the comparison is reversed
         while (height >= 0) {
-            //Loop until i is greater or hit the boundaries
-            while (current.getIndex().compareTo(i) * alternator < 0 && current.hasNext(height)) {
+            while (current.compareTo(i) * alternator < 0 && current.hasNext(height)) {
                 next = current.getNext(height);
-                //The next node is greater than n's index - slide our Node n right between the two
-                //If we moved this into the while loop, we'd lose the reference for the previous node that links to n
-                if (next.getIndex().compareTo(i) * alternator > 0 && height <= n.getMaxHeight()) {
-                    n.setNext(height, next);
-                    current.setNext(height, n);
+                if (next.compareTo(i) * alternator >= 0) {
+                    if (height <= h) {
+                        precursorNodes[height] = current;
+                    }
+                    //In the case we do have a Node with Index i, we need to go past it or else we start the next level already past our target
+                    //Should never increment past our head/tail, as they never contain anything; in the most extreme case where our last Node contains the index, we increment past it into the head/tail node
+                    if (next.containsIndex(i)) {
+                        current = next;
+                    }
                 }
-                current = next;
+                current = current.getNext(height);
             }
             height--;
             alternator = (1 - 2 * (height % 2));
+        }
+        return precursorNodes;
+    }
+
+    //Is there a point to returning true?
+    //This works fine for inserting single nodes, but what if we want to attach a block of them? We could stitch nodes together and use a pseudoblock to connect
+    protected boolean insertNode(Node[] attachNodes, Node<I, V> n) {
+        for (int i = 0; i < attachNodes.length; i++) {
+            n.setNext(i, attachNodes[i].getNext(i));
+            attachNodes[i].setNext(i, n);
         }
         insertHeightUpdate(n.getMaxHeight());
         return true;
     }
 
-    private boolean deleteNode(I i) {
-        int height = currentMaxHeight;
-        int deleteHeight = 0;
-        int alternator = (1 - 2 * (height % 2));
-        Node current = (alternator == 1)? headNode : tailNode;
-        Node next;
-        while (height >= 0) {
-            //Loop until we're past i or hit the boundaries
-            while (current.getIndex().compareTo(i) * alternator < 0 && current.hasNext(height)) {
-                next = current.getNext(height);
-                //Deletes any node that i fits into
-                //When does this get used by quadtree? When we have an empty node to remove, any time else?
-                if (next.getIndex().contains(i) == true) {
-                    deleteHeight = next.getMaxHeight();
-                    current.setNext(height, next.getNext(height));
-                }
-                current = current.getNext(height);
-            }
-            height--;
-            alternator = (1 - 2 * (height % 2));
+    //Do we need some sort of sanity check to prevent deleting Nodes that aren't in the skiplist?
+    protected boolean deleteNode(Node[] detachNodes, Node<I, V> n) {
+        for (int i = 0; i <= n.getMaxHeight(); i++) {
+            //Potential for out of bounds if we pass a malformed array
+            detachNodes[i].setNext(i, n.getNext(i));
         }
-        deleteHeightUpdate(deleteHeight);
-        //Hmm... we have no condition for returning false
+        deleteHeightUpdate(n.getMaxHeight());
         return true;
     }
 
-    private boolean deleteNode(Node<I, V> n) {
-        return deleteNode(n.getIndex());
-    }
-
-    private int pickNodeHeight() {
+    protected int pickNodeHeight() {
         //Aims for 1:3 ratio between each layer based on current situation. Picks the highest level that wouldn't violate the 3:1 ratio among lower levels
         //Does nothing for how evenly they are distributed across the range of our index. On the average this is fine, but it could rarely be an issue
         //Making height adjustments of +/-1 is relatively inexpensive... but that would mean variable Node height
@@ -194,11 +193,12 @@ public class Skiplist<I extends Index<I>, V> {
         System.out.print(stringBuilder.toString());
     }
 
-    class HeadNode extends Node {
+    class HeadNode extends Node<I, V> {
         //One of the entry/end nodes as we navigate the skiplist. We should probably make all this non-public
         ArrayList<Node> nextNodes; //Started with ArrayList thinking we'd resize/populate as needed, but perhaps should be just an array
-        HeadIndex headIndex = new HeadIndex();
-        HeadNode() {
+        I headIndex;
+        HeadNode(I head) {
+            headIndex = head;
             nextNodes = new ArrayList<>(listCeiling);
             for (int i = 0; i < listCeiling; i++) {
                 nextNodes.add(i, null);
@@ -207,6 +207,11 @@ public class Skiplist<I extends Index<I>, V> {
         @Override
         public int getMaxHeight() {
             return currentMaxHeight;
+        }
+
+        @Override
+        boolean overlapsIndex(I i) {
+            return (i.minRange() < headIndex.maxRange());
         }
 
         @Override
@@ -253,16 +258,28 @@ public class Skiplist<I extends Index<I>, V> {
         }
 
         @Override
+        public V setValue(V v) {
+            return null;
+        }
+
+        @Override
         public int compareTo(Node n) {
+            return -1;
+        }
+
+        @Override
+        public int compareTo(I i) {
             return -1;
         }
     }
 
-    class TailNode extends Node {
+    class TailNode extends Node<I, V> {
         //The other entry/end node
         ArrayList<Node> nextNodes;
-        TailIndex tailIndex = new TailIndex();
-        TailNode() {
+        //TailIndex tailIndex = new TailIndex();
+        I tailIndex;
+        TailNode(I tail) {
+            tailIndex = tail;
             nextNodes = new ArrayList<>(listCeiling);
             for (int i = 0; i < listCeiling; i++) {
                 nextNodes.add(i, null);
@@ -275,8 +292,18 @@ public class Skiplist<I extends Index<I>, V> {
         }
 
         @Override
+        public int compareTo(I i) {
+            return 1;
+        }
+
+        @Override
         public int getMaxHeight() {
             return currentMaxHeight;
+        }
+
+        @Override
+        boolean overlapsIndex(I i) {
+            return (i.maxRange() > tailIndex.minRange());
         }
 
         @Override
@@ -321,6 +348,11 @@ public class Skiplist<I extends Index<I>, V> {
         public V getValue() {
             return null;
         }
+
+        @Override
+        V setValue(V v) {
+            return null;
+        }
     }
 
     //The index for our head/tail implements Index<I>, meaning it can be compared to whatever implementation of Index used to construct the skiplist
@@ -335,6 +367,26 @@ public class Skiplist<I extends Index<I>, V> {
         public boolean contains(Index i) {
             return false;
         }
+
+        @Override
+        public boolean overlaps(Index i) {
+            return false;
+        }
+
+        @Override
+        public int minRange() {
+            return 0;
+        }
+
+        @Override
+        public int maxRange() {
+            return 0;
+        }
+
+        @Override
+        public boolean isDivisible() {
+            return false;
+        }
     }
 
     class TailIndex implements Index<I> {
@@ -345,6 +397,26 @@ public class Skiplist<I extends Index<I>, V> {
 
         @Override
         public boolean contains(Index i) {
+            return false;
+        }
+
+        @Override
+        public boolean overlaps(Index i) {
+            return false;
+        }
+
+        @Override
+        public int minRange() {
+            return 0xFFFFFFFF;
+        }
+
+        @Override
+        public int maxRange() {
+            return 0xFFFFFFFF;
+        }
+
+        @Override
+        public boolean isDivisible() {
             return false;
         }
     }
