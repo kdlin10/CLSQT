@@ -72,7 +72,7 @@ class MortonIndex implements Index<MortonIndex> {
 
     public int maxRange() {
         //Returns index with rightmost 2*res bits to one
-        return index | ((0x0000001 << res * 2) - 1);
+        return index | ((0x00000001 << res * 2) - 1);
     }
 
     public int getRes() {
@@ -117,10 +117,6 @@ class MortonIndex implements Index<MortonIndex> {
 
     protected void expand() {
         res++;
-    }
-
-    protected void shrink() {
-        res--;
     }
 
     //Borrowed from http://asgerhoedt.dk/?p=276

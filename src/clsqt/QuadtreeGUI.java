@@ -3,9 +3,6 @@ package clsqt;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.AbstractMap;
 
 public class QuadtreeGUI {
@@ -21,26 +18,33 @@ public class QuadtreeGUI {
 class QTFrame extends JFrame {
     QTFrame(Quadtree<Cartesian> qt) {
         setTitle("Quadtree Graphical Representation");
-        setSize(qt.maxDim, qt.maxDim);
+        //setSize(qt.maxDim, qt.maxDim);
+        setMinimumSize(new Dimension(qt.maxDim, qt.maxDim));
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         this.add(new QTPanel(qt));
     }
 }
 
 class QTPanel extends JPanel {
+    QTPopup popupMenu;
     Quadtree<Cartesian> quadtree;
     QTPanel(Quadtree<Cartesian> qt) {
         quadtree = qt;
-        QTPopup popupMenu = new QTPopup(qt);
-        this.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                super.mouseReleased(e);
-                if (e.isPopupTrigger()) {
-                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
-                }
-            }
-        });
+        popupMenu = new QTPopup(qt, this);
+        this.setBackground(Color.gray);
+        this.setComponentPopupMenu(popupMenu);
+        setPreferredSize(new Dimension(qt.maxDim, qt.maxDim));
+    }
+}
+
+class nodePanel extends JPanel {
+    Node<MortonIndex, Cartesian> thisNode;
+    nodePanel(Node n) {
+        thisNode = n;
+        this.setVisible(true);
+        this.setBackground(Color.red);
+        this.setBorder(BorderFactory.createLineBorder(Color.black));
+        this.setInheritsPopupMenu(false);
     }
 
     @Override
@@ -48,48 +52,71 @@ class QTPanel extends JPanel {
         super.paintComponent(g);
         AbstractMap.SimpleEntry<Integer, Integer> quadEntry, pointEntry;
         int s, x, y;
-        Node<MortonIndex, Cartesian> currentNode = quadtree.skiplist.findPrecursors(new MortonIndex(0, 0), 0)[0].getNext(0);
-        MortonIndex currentIndex;
-        while (currentNode.hasNext(0)) {
-            currentIndex = currentNode.getIndex();
-            quadEntry = MortonIndex.decode(currentIndex.minRange());
-            pointEntry = MortonIndex.decode(currentIndex);
-            s = (int) Math.pow(2, currentIndex.getRes());
-            x = quadEntry.getKey();
-            y = quadEntry.getValue();
-            g.setColor(new Color(255, 0, 0));
-            g.fillRect(x, y, s, s);
-            g.setColor((new Color(0, 0, 255)));
-            g.drawRect(x, y, s, s);
-            g.setColor(new Color(0, 0, 0));
-            g.drawOval(pointEntry.getKey() - 2, pointEntry.getValue() - 2, 4, 4);
-            currentNode = currentNode.getNext(0);
-        }
+        MortonIndex currentIndex = thisNode.getIndex();
+        quadEntry = MortonIndex.decode(currentIndex.minRange());
+        pointEntry = MortonIndex.decode(currentIndex);
+        s = (int) Math.pow(2, currentIndex.getRes());
+        x = quadEntry.getKey();
+        y = quadEntry.getValue();
+
+        this.setBounds(x, y, s, s);
+
+        g.setColor(Color.black);
+        //Necessary because rendering is relative to the bounds, not the JFrame
+        g.drawOval(pointEntry.getKey() - 2 - x, pointEntry.getValue() - 2 - y, 4, 4);
     }
 }
 
 class QTPopup extends JPopupMenu {
     Quadtree<Cartesian> quadtree;
-    JMenuItem addPointMenu;
-    int addX, addY;
-    QTPopup(Quadtree<Cartesian> qt) {
+    QTPanel parentPanel;
+    JMenuItem addPointMenu, removePointMenu;
+    QTPopup(Quadtree<Cartesian> qt, QTPanel panel) {
         quadtree = qt;
-        addPointMenu = new JMenuItem("Add Point");
-        addPointMenu.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                assert(quadtree.maxDim < 1024);
-                assert(quadtree.maxDim < 1024);
-                quadtree.add(new Point(addX, addY));
-            }
-        });
+        parentPanel = panel;
+        addPointMenu = new JMenuItem("Add Point: ");
         this.add(addPointMenu);
+        removePointMenu = new JMenuItem("Remove Point: ");
+        this.add(removePointMenu);
     }
 
     @Override
     public void show(Component invoker, int x, int y) {
         super.show(invoker, x, y);
-        addX = x;
-        addY = y;
-        addPointMenu.setText("Add Point at: " + addX + ", " + addY);
+        addPointMenu.setAction(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                assert(y < quadtree.maxDim);
+                assert(x < quadtree.maxDim);
+                quadtree.add(new Point(x, y));
+                parentPanel.add(new nodePanel(quadtree.skiplist.findPrecursors(new MortonIndex(MortonIndex.encode(x, y), 0), 0)[0].getNext(0)));
+                parentPanel.validate();
+                parentPanel.repaint();
+            }
+        });
+        addPointMenu.setText("Add Point at: " + x + ", " + y); //Apparently the order matters, setting action resets the text
+
+        Component mouseComponent = parentPanel.getComponentAt(x, y);
+        if (mouseComponent instanceof nodePanel) {
+            removePointMenu.setEnabled(true);
+            int pointX = ((nodePanel) mouseComponent).thisNode.getValue().getX();
+            int pointY = ((nodePanel) mouseComponent).thisNode.getValue().getY();
+            removePointMenu.setAction(new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    quadtree.remove(new Point(pointX, pointY));
+                    Component removeComponent = parentPanel.getComponentAt(pointX, pointY);
+                    parentPanel.remove(removeComponent);
+                    removeComponent.invalidate();
+                    parentPanel.validate();
+                    parentPanel.repaint();
+                }
+            });
+            removePointMenu.setText("Remove Point at: " + pointX + ", " + pointY);
+        }
+        else {
+            removePointMenu.setEnabled(false);
+            removePointMenu.setText("Remove Point");
+        }
     }
 }

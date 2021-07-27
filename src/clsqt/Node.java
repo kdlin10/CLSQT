@@ -15,6 +15,7 @@ abstract class Node<I extends Index<I>, V> implements Comparable<Node<I, V>> {
     abstract boolean isEmpty();
     abstract Node setNext(int h, Node<I, V> n); //Return the previous next node? Potential shortcut but unused thus far
     abstract Node<I, V> getNext(int h);
+    abstract Node<I, V> getNext();
     abstract I getIndex();
     abstract public String toString();
 }

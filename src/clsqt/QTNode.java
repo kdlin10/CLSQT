@@ -67,6 +67,10 @@ class QTNode<I extends Index<I>, V> extends Node<I, V> {
         return nextNodes[h];
     }
 
+    public Node<I, V> getNext() {
+        return nextNodes[0];
+    }
+
     public V getValue() {
         return value;
     }

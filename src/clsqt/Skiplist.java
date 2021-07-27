@@ -50,7 +50,7 @@ public class Skiplist<I extends Index<I>, V> {
         return true;
     }
 
-    //Probably shouldn't support removing a value without the index, since it means we need to traverse the entire skiplist
+    //Should we support removing a value without the index? Means we need to traverse the entire skiplist
     //Node designed to hold more than one object... but for now we treat it as single values
     //It might be useful to return the deleted node instead for the quadtree... but not general usage
     public boolean remove(I i) {
@@ -146,8 +146,7 @@ public class Skiplist<I extends Index<I>, V> {
     }
 
     private void deleteHeightUpdate(int h) {
-        //If we just removed the sole highest node, adjust our max height tracker down
-        if (h == currentMaxHeight && heightTracker[h] == 1) {
+        if (h == currentMaxHeight && heightTracker[h] == 1 && currentMaxHeight > 0) {
             currentMaxHeight--;
         }
         heightTracker[h]--;
@@ -241,6 +240,11 @@ public class Skiplist<I extends Index<I>, V> {
             return nextNodes.get(h);
         }
 
+        @Override
+        public Node getNext() {
+            return nextNodes.get(0);
+        }
+
         //Would be nice if there was a way to do this without casting
         @Override
         public I getIndex() {
@@ -331,6 +335,11 @@ public class Skiplist<I extends Index<I>, V> {
         @Override
         public Node getNext(int h) {
             return nextNodes.get(h);
+        }
+
+        @Override
+        public Node getNext() {
+            return nextNodes.get(0);
         }
 
         @Override
