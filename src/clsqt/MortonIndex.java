@@ -1,6 +1,6 @@
 package clsqt;
 
-import java.util.AbstractMap;
+import java.util.ArrayList;
 
 class MortonIndex implements Index<MortonIndex> {
     private int index;
@@ -8,6 +8,10 @@ class MortonIndex implements Index<MortonIndex> {
 
     //Limited to 16 bits of precision on x and y axis - 16 bits on the left get thrown away
     //If we have more precision than we can handle, shift to the right in the Quadtree before passing to here?
+    MortonIndex(int i) {
+        this(i, 0);
+    }
+
     MortonIndex(int x, int y, int r) {
         index = encode(x, y);
         res = r;
@@ -30,12 +34,12 @@ class MortonIndex implements Index<MortonIndex> {
         return interleaveZeros(c.getX()) | interleaveZeros(c.getY()) << 1;
     }
 
-    public static AbstractMap.SimpleEntry<Integer, Integer> decode(MortonIndex i) {
+    public static Pair<Integer, Integer> decode(MortonIndex i) {
         return MortonIndex.decode(i.index);
     }
 
-    public static AbstractMap.SimpleEntry<Integer, Integer> decode(int encoded) {
-        return new AbstractMap.SimpleEntry(deinterleave(encoded), deinterleave(encoded >>> 1));
+    public static Pair<Integer, Integer> decode(int encoded) {
+        return new Pair(deinterleave(encoded), deinterleave(encoded >>> 1));
     }
 
     @Override
@@ -50,10 +54,9 @@ class MortonIndex implements Index<MortonIndex> {
 
     @Override
     public boolean overlaps(MortonIndex i) {
-        //If the compared index is greater than this one and its min is less than this one's max
-        //OR if the compared index is less than this one and its max is greater than this one's min
-        return (Integer.compareUnsigned(index, i.index) <= 0 && Integer.compareUnsigned(maxRange(), i.minRange()) >= 0) ||
-                (Integer.compareUnsigned(index, i.index) >= 0 && Integer.compareUnsigned(minRange(), i.maxRange()) <= 0);
+        //No overlap if both i's min and max are less than our min, OR both min and max are greater than our max
+        return !((Integer.compareUnsigned(minRange(), i.minRange()) > 0 && Integer.compareUnsigned(minRange(), i.maxRange()) > 0) ||
+                (Integer.compareUnsigned(maxRange(), i.minRange()) < 0 && Integer.compareUnsigned(maxRange(), i.maxRange()) < 0));
     }
 
     @Override
@@ -119,6 +122,38 @@ class MortonIndex implements Index<MortonIndex> {
         res++;
     }
 
+    //Find the most significant bit different between i1 and i2; split into separate ranges where that bit is not shared
+    //Stop when cartesian to z-order length ratio is 50%+... for which we need both to make a comparison
+    protected static ArrayList<Pair<MortonIndex, MortonIndex>> decompose(int x1, int y1, int x2, int y2) {
+        double decompositionRatio = 0.5;
+        int bitmask = 0x80000000; //1000 0000 ...
+        boolean isY = true;
+        int i1 = encode(x1, y1);
+        int i2 = encode(x2, y2);
+        int pivot;
+        ArrayList<Pair<MortonIndex, MortonIndex>> returnList = new ArrayList<Pair<MortonIndex, MortonIndex>>();
+        if ((float) ((x2 - x1 + 1) * (y2 - y1 + 1)) / (i2 - i1 + 1) >= decompositionRatio) {
+            returnList.add(new Pair(new MortonIndex(i1), new MortonIndex(i2)));
+        }
+        else {
+            while ((i1 & bitmask) == (i2 & bitmask)) {
+                bitmask >>= 1;
+                isY = !isY;
+            }
+            if (isY == true) {
+                pivot = deinterleave((i2 & bitmask) >>> 1) - 1;
+                returnList.addAll(decompose(x1, y1, x2, pivot));
+                returnList.addAll(decompose(x1, pivot + 1, x2, y2));
+            }
+            else {
+                pivot = deinterleave(i2 & bitmask) - 1;
+                returnList.addAll(decompose(x1, y1, pivot, y2));
+                returnList.addAll(decompose(pivot + 1, y1, x2, y2));
+            }
+        }
+        return returnList;
+    }
+
     //Borrowed from http://asgerhoedt.dk/?p=276
     private static int interleaveZeros(int x) {
         x &= 0x0000ffff;                  	// x = ---- ---- ---- ---- fedc ba98 7654 3210
@@ -146,12 +181,13 @@ class MortonIndex implements Index<MortonIndex> {
         i |= (i >>> 8);
         i |= (i >>> 16);
         i -= (i >>> 2); //0011 1111 - 0000 1111 = 0011 0000 Gives our two MSB
-        i &= 0x55555555; //Bitmask so only the even digit one is left
+        i &= 0x55555555; //&= 0101 0101 0101 0101 Bitmasks so only the even-digited (power of 2) is left
         return i;
     }
 
     @Override
     public String toString() {
-        return String.valueOf(deinterleave(index)) + ":" + String.valueOf(deinterleave(index >>> 1));
+        //return String.valueOf(deinterleave(index)) + ":" + String.valueOf(deinterleave(index >>> 1));
+        return String.valueOf(index);
     }
 }

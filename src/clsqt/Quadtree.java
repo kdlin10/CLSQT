@@ -1,5 +1,8 @@
 package clsqt;
 
+import java.util.ArrayList;
+import java.util.function.Predicate;
+
 //Hmm, we're already inherently limiting ourselves to 32 bits since Cartesian returns ints
 public class Quadtree<V extends Cartesian> {
     Skiplist<MortonIndex, Cartesian> skiplist;
@@ -33,6 +36,7 @@ public class Quadtree<V extends Cartesian> {
             else {
                 newRes = currentIndex.getSplitSize(addIndex);
                 currentIndex.setRes(newRes);
+                addIndex.setRes(newRes);
             }
         }
         else if (nextNode.containsIndex(addIndex)) {
@@ -43,19 +47,19 @@ public class Quadtree<V extends Cartesian> {
             else {
                 newRes = nextIndex.getSplitSize(addIndex);
                 nextIndex.setRes(newRes);
+                addIndex.setRes(newRes);
             }
         }
         //Adding new node to empty space
         else {
-            //Find the largest resolution that fits between the two nodes without overlap
+            //Find the largest resolution that fits between the two nodes without overlap while aligning with quad structure
             //We should delegate testing to the nodes, or else we need a real index for the head/tail
             newRes = MortonIndex.getMaxDiffPowOfTwo(currentIndex.maxRange(), nextIndex.minRange());
-            //While there's an overlap, reduce resolution... need this instead of just taking the min of the MaxDiffPowOfTwo between current/add, add/next because our head/tail nodes occupy space
+            addIndex.setRes(newRes);
             while (currentNode.overlapsIndex(addIndex) || nextNode.overlapsIndex(addIndex)) {
                 addIndex.setRes(--newRes);
             }
         }
-        addIndex.setRes(newRes);
         return skiplist.insertNode(precursorNodes, new QTNode<>(addIndex, c, newHeight));
     }
 
@@ -93,6 +97,21 @@ public class Quadtree<V extends Cartesian> {
         }
     }
 
+    public ArrayList<Cartesian> rectSearch(int x1, int y1, int x2, int y2) {
+        return rectSearch(x1, y1, x2, y2, c -> true);
+    }
+
+    public ArrayList<Cartesian> rectSearch(int x1, int y1, int x2, int y2, Predicate<Cartesian> filter) {
+        int xMin, xMax, yMin, yMax;
+        xMin = Math.min(x1, x2);
+        xMax = Math.max(x1, x2);
+        yMin = Math.min(y1, y2);
+        yMax = Math.max(y1, y2);
+        ArrayList<Cartesian> resultList = skiplist.intervalsGet(MortonIndex.decompose(xMin, yMin, xMax, yMax));
+        resultList.removeIf(c -> !(c.getX() >= xMin && c.getX() <= xMax && c.getY() >= yMin && c.getY() <= yMax) || filter.test(c) == false);
+        return resultList;
+    }
+
     //What does update entail? It means our Cartesian changed coordinates and we need to check and restructure if necessary... but of course, if the coordinate is different, we can't reuse it as index
     //Or should we just have a method to check everything contained in the quadtree and restructure as appropriate?
     /*
@@ -101,15 +120,6 @@ public class Quadtree<V extends Cartesian> {
     }
 
     public V get(Cartesian c) {
-
-    }
-     */
-/*
-    public rectSearch(Cartesian c1, Cartesian c2, Predicate filter) {
-
-    }
-
-    public rectSearch(int x1, int y1, int x2, int y2) {
 
     }
 

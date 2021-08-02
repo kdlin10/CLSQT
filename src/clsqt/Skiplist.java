@@ -1,6 +1,7 @@
 package clsqt;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class Skiplist<I extends Index<I>, V> {
     //Our skiplist is different from most implementations in two respects: link direction alternates depending on layer and nodes will map to a range of numbers (disallowing overlaps)
@@ -8,7 +9,7 @@ public class Skiplist<I extends Index<I>, V> {
     private int currentMaxHeight; //Ideal in terms of convergence speed is 1 : e ratio between each layer... We'll settle for 1:3
     private int listCeiling = 24; //Should be more than enough - if every 3rd node on a layer gets bumped up, we can fit 3^24 nodes, surpassing max int range
     private int[] heightTracker;
-    private int size = 0;
+    private int size = 0; //Fix
     private Node<I, V> headNode, tailNode;
 
     public Skiplist(I head, I tail) {
@@ -26,7 +27,6 @@ public class Skiplist<I extends Index<I>, V> {
         }
     }
     //Add constructor for adding a set of indexed values?
-
     public V get(I i) {
         Node<I, V> targetNode = findPrecursors(i, 0)[0].getNext(0);
         //Perhaps make an protected unsafeGet to avoid the branching?
@@ -36,6 +36,52 @@ public class Skiplist<I extends Index<I>, V> {
         return null;
     }
 
+    //Given a list of intervals (1 or more indexes), return values of all nodes within the intervals, without duplicates
+    public ArrayList<V> intervalsGet(ArrayList<Pair<I, I>> intervals) {
+        ArrayList<V> returnList = new ArrayList<V>();
+        Node<I, V> currentNode;
+        Iterator<Pair<I, I>> it = intervals.iterator();
+        Pair<I, I> interval;
+        while (it.hasNext()) {
+            interval = it.next();
+            currentNode = findPrecursors(interval.getL(), 0)[0];
+            //If there's no overlap at all, get next node - guaranteed to hit or overshoot
+            if (Integer.compareUnsigned(currentNode.getIndex().maxRange(), interval.getL().minRange()) < 0) {
+                currentNode = currentNode.getNext();
+            }
+            //While the interval start is less than currentNode max... But we don't want to advance the interval without having checked it at all
+            while (Integer.compareUnsigned(currentNode.getIndex().maxRange(), interval.getL().minRange()) >= 0) {
+                //We want to check this for every overlapping node/interval combo... valid as long as our single value position is the same as the node's
+                if (currentNode.compareTo(interval.getL()) >= 0 && currentNode.compareTo(interval.getR()) <= 0) {
+                    returnList.add(currentNode.getValue());
+                }
+                //Assumes sorted intervals and nodes so that we're removing intervals monotonically
+                //Wish we had operator overloading or unsigned ints... maybe time to refactor for intervals/head&tail nodes
+                if (Integer.compareUnsigned(currentNode.getIndex().maxRange(), interval.getR().maxRange()) >= 0) {
+                    it.remove();
+                    if (it.hasNext()) {
+                        interval = it.next();
+                        //If we iterate to last and don't continue the while loop, exits here without checking last interval...
+                        if (Integer.compareUnsigned(currentNode.getIndex().maxRange(), interval.getL().minRange()) < 0) {
+                            currentNode = findPrecursors(interval.getL(), 0)[0].getNext();
+                        }
+                    }
+                    else {
+                        //Out of intervals to search, done!
+                        break;
+                    }
+                }
+                //Would not reach here if we failed the while loop condition there has to be at least some overlap
+                else {
+                    interval.setL((I) new MortonIndex(currentNode.getIndex().maxRange() + 1));
+                    //Here our interval no longer intersects with current node; Overlap or overshoot ok - if next node is short, we start seeking again from the very top
+                    //As long as we don't search outside the boundaries, this is always valid
+                    currentNode = currentNode.getNext();
+                }
+            }
+        }
+        return returnList;
+    }
 
     public boolean put(I i, V v) {
         int h = pickNodeHeight();
@@ -81,6 +127,8 @@ public class Skiplist<I extends Index<I>, V> {
         Node[] precursorNodes = new Node[h+1];
         //Since the link direction alternates on each level, the comparison is reversed
         while (height >= 0) {
+            //Guaranteed to terminate when index is in between where current and next nodes are *centered*... but index may fall inside the bounds of current node!
+            //Not an issue when limited to one value per node, but for search interval pruning...
             while (current.compareTo(i) * alternator < 0 && current.hasNext(height)) {
                 next = current.getNext(height);
                 if (next.compareTo(i) * alternator >= 0) {
