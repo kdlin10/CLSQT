@@ -5,6 +5,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 
 public class QuadtreeGUI {
     QTFrame qtFrame;
@@ -58,6 +59,7 @@ class QTPanel extends JPanel {
         protected void updateSearchResults(Collection<Cartesian> results) {
             latestResults = results;
             this.setVisible(true);
+            this.repaint();
         }
 
         protected void paintComponent(Graphics g) {
@@ -107,7 +109,7 @@ class nodePanel extends JPanel {
 class QTPopup extends JPopupMenu {
     private Quadtree<Cartesian> quadtree;
     private QTPanel parentPanel;
-    private JMenuItem addPointMenu, removePointMenu, rectSearchMenu;
+    private JMenuItem addPointMenu, removePointMenu, rectSearchMenu, nearestSearchMenu;
     private boolean searchStart = false;
     private int initX, initY;
 
@@ -118,8 +120,10 @@ class QTPopup extends JPopupMenu {
         this.add(addPointMenu);
         removePointMenu = new JMenuItem("Remove Point: ");
         this.add(removePointMenu);
-        rectSearchMenu = new JMenuItem("Rectangular search: ");
+        rectSearchMenu = new JMenuItem("Rectangular Search: ");
         this.add(rectSearchMenu);
+        nearestSearchMenu = new JMenuItem("Find Nearest Neighbor: ");
+        this.add(nearestSearchMenu);
     }
 
     @Override
@@ -147,18 +151,41 @@ class QTPopup extends JPopupMenu {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     quadtree.remove(new Point(pointX, pointY));
-                    Component removeComponent = parentPanel.getComponentAt(pointX, pointY);
-                    parentPanel.remove(removeComponent);
-                    removeComponent.invalidate();
+                    parentPanel.remove(mouseComponent);
+                    if (parentPanel.searchPanel.contains(pointX - parentPanel.searchPanel.getX(), pointY - parentPanel.searchPanel.getY())) {
+                        //Don't want to show points of removed nodes
+                        parentPanel.searchPanel.setVisible(false);
+                    }
+                    mouseComponent.invalidate();
                     parentPanel.validate();
                     parentPanel.repaint();
                 }
             });
             removePointMenu.setText("Remove Point at: " + pointX + ", " + pointY);
+
+            nearestSearchMenu.setAction(new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    Optional<Cartesian> nearest = quadtree.nearestNeighbor(((nodePanel) mouseComponent).thisNode);
+                    if (nearest.isPresent()) {
+                        System.out.println("Nearest neighbor at: " + nearest.get().getX() + ", " + nearest.get().getY());
+                        ArrayList<Cartesian> nearestList = new ArrayList<>();
+                        nearestList.add(nearest.get());
+                        parentPanel.searchPanel.updateSearchRange(nearest.get().getX() - 2, nearest.get().getY() - 2, nearest.get().getX() + 2, nearest.get().getY() + 2);
+                        parentPanel.searchPanel.updateSearchResults(nearestList);
+                    }
+                    else {
+                        parentPanel.searchPanel.setVisible(false);
+                    }
+                }
+            });
+            nearestSearchMenu.setText("Find Nearest Neighbor to node " + pointX + ", " + pointY);
         }
         else {
             removePointMenu.setEnabled(false);
             removePointMenu.setText("Remove Point");
+            nearestSearchMenu.setEnabled(false);
+            nearestSearchMenu.setText("Find Nearest Neighbor");
         }
 
         if (searchStart == false) {

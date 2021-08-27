@@ -70,12 +70,56 @@ class MortonIndex implements Index<MortonIndex> {
 
     public int minRange() {
         //Returns index with rightmost 2*res bits to zero
-        return index >>> (2 * res) << (2 * res);
+        return minRange(res);
+    }
+
+    public int minRange(int r) {
+        return index >>> (2 * r) << (2 * r);
     }
 
     public int maxRange() {
         //Returns index with rightmost 2*res bits to one
-        return index | ((0x00000001 << res * 2) - 1);
+        return maxRange(res);
+    }
+
+    public int maxRange(int r ) {
+        return index | ((0x00000001 << r * 2) - 1);
+    }
+
+    public static MortonIndex getNorth(MortonIndex i) {
+        if (i.getQuadrant() == 2 || i.getQuadrant() == 3) {
+            return new MortonIndex(i.index ^ (0x00000002 << i.res * 2), i.res);
+        }
+        else {
+            return new MortonIndex((i.index ^ (0x00000002 << ((i.res + 1) * 2)) | (0x00000002 << i.res * 2)), i.res);
+        }
+    }
+
+    public static MortonIndex getSouth(MortonIndex i) {
+        if (i.getQuadrant() == 0 || i.getQuadrant() == 1) {
+            return new MortonIndex(i.index ^ (0x00000002 << i.res * 2), i.res);
+        }
+        else {
+            return new MortonIndex((i.index ^ (0x00000002 << ((i.res + 1) * 2)) ^ (0x00000002 << i.res * 2)), i.res);
+        }
+    }
+
+    public static MortonIndex getEast(MortonIndex i) {
+        if (i.getQuadrant() == 0 || i.getQuadrant() == 2) {
+            return new MortonIndex(i.index ^ (0x00000001 << i.res * 2), i.res);
+        }
+        else {
+            return new MortonIndex((i.index ^ (0x00000001 << ((i.res + 1) * 2)) ^ (0x00000001 << i.res * 2)), i.res);
+        }
+    }
+
+    public static MortonIndex getWest(MortonIndex i) {
+        if (i.getQuadrant() == 1 || i.getQuadrant() == 3) {
+            return new MortonIndex(i.index ^ (0x00000001 << i.res * 2), i.res);
+        }
+        else {
+            return new MortonIndex((i.index ^ (0x00000001 << ((i.res + 1) * 2)) ^ (0x00000001 << i.res * 2)), i.res);
+        }
     }
 
     public int getRes() {
@@ -103,11 +147,11 @@ class MortonIndex implements Index<MortonIndex> {
     }
 
     protected int getQuadrant() {
-        return index & (0x00000003 << (2 * res));
+        return getQuadrant(res);
     }
 
     protected int getQuadrant(int r) {
-        return index & (0x00000003 << (2 * r));
+        return (index & (0x00000003 << (2 * r))) >>> (2 * r);
     }
 
     protected int getParentStartLoc() {
@@ -187,7 +231,7 @@ class MortonIndex implements Index<MortonIndex> {
 
     @Override
     public String toString() {
-        //return String.valueOf(deinterleave(index)) + ":" + String.valueOf(deinterleave(index >>> 1));
-        return String.valueOf(index);
+        return String.valueOf(deinterleave(index)) + ":" + String.valueOf(deinterleave(index >>> 1));
+        //return String.valueOf(index);
     }
 }

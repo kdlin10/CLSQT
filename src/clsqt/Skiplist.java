@@ -36,7 +36,9 @@ public class Skiplist<I extends Index<I>, V> {
         return null;
     }
 
-    //Given a list of intervals (1 or more indexes), return values of all nodes within the intervals, without duplicates
+    //Given a SORTED list of intervals (1 or more indexes), return values of all nodes within the intervals, without duplicates
+    //If intervals exceeds skiplist range, we run out of nodes
+    //BUG: Subtracts head node from intervals
     public ArrayList<V> intervalsGet(ArrayList<Pair<I, I>> intervals) {
         ArrayList<V> returnList = new ArrayList<V>();
         Node<I, V> currentNode;
@@ -71,7 +73,7 @@ public class Skiplist<I extends Index<I>, V> {
                         break;
                     }
                 }
-                //Would not reach here if we failed the while loop condition there has to be at least some overlap
+                //Would not reach here if we failed the while loop condition, there has to be at least some overlap
                 else {
                     interval.setL((I) new MortonIndex(currentNode.getIndex().maxRange() + 1));
                     //Here our interval no longer intersects with current node; Overlap or overshoot ok - if next node is short, we start seeking again from the very top

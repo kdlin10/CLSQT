@@ -9,10 +9,11 @@ public class Main {
     static private Skiplist<MortonIndex, Character> sltest = new Skiplist<>(new MortonIndex(0, 0, 0), new MortonIndex(65536, 65536, 0));
     static private TreeMap<MortonIndex, Character> control = new TreeMap<>();
     static private Random RNG = new Random();
-    static private Quadtree<Cartesian> qt = new Quadtree();
+    static private Quadtree<Cartesian> qt;
     static private QuadtreeGUI gui;
 
     public static void main(String[] args) throws Exception {
+        qt = new Quadtree(10);
         gui = new QuadtreeGUI(qt);
     }
 
